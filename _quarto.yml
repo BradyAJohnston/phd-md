@@ -1,0 +1,20 @@
+project:
+  type: book
+
+book:
+  title: "md"
+  author: "Jane Doe"
+  date: "11/22/2022"
+  chapters:
+    - index.qmd
+    - intro.qmd
+    - summary.qmd
+    - references.qmd
+    - trajectory-analysis.qmd
+
+bibliography: references.bib
+
+format:
+  html:
+    theme: cosmo
+

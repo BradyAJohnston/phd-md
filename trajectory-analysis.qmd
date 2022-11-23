@@ -1,0 +1,194 @@
+---
+title: "Untitled"
+format: html
+---
+
+Importing of MD trajectories.
+
+Potential useful links: 
+- [Example .pynb](https://github.com/sbhakat/Plotting-MD-Metadynamics/blob/main/python-mdanalysis.ipynb) of MetaD analysis
+
+
+```{r}
+library(tidyverse)
+
+files <- list.files(".", pattern = "COLVAR", recursive = TRUE)
+
+colvar <- tibble(files) |> 
+  mutate(
+    run = str_extract(files, 'BAJ_\\d{1,2}|protein'), 
+    rep = str_detect(files, fixed('repeat', ignore_case = TRUE)), 
+    rna = as.numeric(str_extract(run, '\\d+'))
+  )
+
+colvar_1 <- colvar |> 
+  filter(rna == 1) |> 
+  pull(files) |> 
+  mdfret::readcolvar()
+
+
+plot_colvar <- function(x) {
+  x |> 
+  slice_sample(prop = 0.01) |> 
+  janitor::clean_names() |> 
+  pivot_longer(contains('rmsd')) |> 
+  ggplot(aes(time / 1e3, value, colour = name)) + 
+  geom_line() + 
+  theme_bw() + 
+  # scale_x_continuous(labels = ~.x / 1e3, name = "Time (ns)") + 
+  # scale_y_continuous(name = 'RMSD') + 
+  scale_colour_discrete(
+    name = 'Model Comparison',
+    labels = ~c(
+      'rmsd0' = 'Bound', 
+      'rmsd1' = 'APO'
+    )[.x]
+  )
+  
+}
+
+col <- colvar |> 
+  filter(run %in% c("BAJ_01", "protein")) |> 
+  mutate(
+    data = map(files, mdfret::readcolvar)
+  )
+
+```
+
+```{r}
+col |> 
+  unnest(data) |> 
+  plot_colvar() + 
+  facet_wrap(~run, ncol = 1, labeller = labeller(run = ~c(
+    "BAJ_01" = "RNA01", 
+    "protein" = "noRNA"
+  )[.x])) + 
+  theme(legend.position = 'bottom') + 
+  labs(
+    x = 'Simulation Time (ns)', 
+    y = 'RMSD (Å)'
+  )
+  
+```
+
+Save out a subset of the data for plotting in the thesis.
+
+```{r}
+if (FALSE) {
+col |> 
+  unnest(data) |> 
+  slice_sample(prop = 0.01) |> 
+  write_csv('../thesis/figures/data/md/md_colvar.csv')
+}
+```
+
+What about the sampling.
+
+```{r}
+col |> 
+  unnest(data) |> 
+  mutate(
+    run = factor(run, 
+                 levels = c('protein', 'BAJ_01'), 
+                 labels = c('Protein Only', "RNA01"))
+    ) |> 
+  ggplot(aes(
+    path.sss, 
+    path.zzz,
+    colour = time / 1e3
+  )) + 
+  geom_point(alpha = 0.05, size = 0.1) + 
+  scale_colour_viridis_c(option = 1, breaks = c(0, 200, 400, 600)) + 
+  scale_x_continuous(breaks = 1:10) +
+  facet_wrap(~run, ncol = 2) + 
+  labs(
+    colour = 'Simulation Time (s)'
+  ) + 
+  theme_bw() + 
+  theme(
+    legend.position = "bottom"
+  )
+```
+
+```{r}
+col |> 
+  unnest(data) |> 
+  mutate(
+    run = factor(run, 
+                 levels = c('protein', 'BAJ_01'), 
+                 labels = c('Protein Only', "RNA01"))
+  ) |> 
+  pivot_longer(matches('bias')) |> 
+  ggplot(aes(time / 1e3, value, colour = run)) + 
+  geom_line() + 
+  facet_grid(
+    cols = vars(run), 
+    row = vars(name), 
+     scales = 'free_y'
+  ) + 
+  
+  labs(
+    x = 'Simulation Time (ns)', 
+    y = 'Bias Value', 
+    colour = 'Simulation'
+  ) + 
+  
+  theme_bw() + 
+  theme(
+    legend.position = 'bottom'
+  )
+```
+
+```{r}
+fl <- 'data/BAJ_01/fes_500000.dat'
+fl_norna <- 'data/protein/protein_metad/fes_600000.dat'
+
+mdfret::readfes(fl_norna) |>
+  mutate(
+    ff1 = ifelse(is.infinite(ff1), NA, ff1), 
+    ff1 = ff1 - min(ff1, na.rm = TRUE), 
+    ff1 = scales::oob_squish(ff1, c(0, 50))
+    ) |> 
+  ggplot(aes(sss.sss, zzz.zzz,  fill = ff1)) + 
+  geom_raster() + 
+  scale_x_continuous(breaks = 1:10, expand = expansion()) + 
+  scale_fill_viridis_c(option = 2, direction = -1, na.value = 'transparent') + 
+  coord_cartesian(xlim = c(0, 11)) + 
+  theme_bw() + 
+  theme(
+    panel.ontop = TRUE, 
+    panel.grid = element_line(colour = scales::alpha('white', 0.3)),
+    panel.background = element_blank()
+  )
+```
+
+```{r}
+#| fig-height: 8
+tibble(
+  run = c('noRNA', 'RNA01'), 
+  path = c("data/protein/protein_metad/HILLS", 
+           "data/BAJ_01/HILLS")
+) |> 
+  mutate(
+    data = map(path, mdfret::readhills)
+  ) -> dat
+
+dat |> 
+  unnest(data) |> 
+  ggplot(aes(time / 1e3, height, colour = run)) +
+  geom_line() + 
+  facet_grid(
+    rows = vars(run), 
+    scales = "free_y"
+  ) + 
+  
+  labs(
+    x = 'Simulation Time (ns)'
+  ) + 
+  
+  theme_bw() + 
+  theme(
+    legend.position = 'bottom'
+  )
+```
+
