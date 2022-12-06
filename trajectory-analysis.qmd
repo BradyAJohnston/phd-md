@@ -21,9 +21,9 @@ colvar <- tibble(files) |>
     rna = as.numeric(str_extract(run, '\\d+'))
   )
 
-colvar_1 <- colvar |> 
-  filter(rna == 1) |> 
-  pull(files) |> 
+colvar_1 <- colvar |>
+  filter(rna == 1) |>
+  pull(files) |>
   mdfret::readcolvar()
 
 
@@ -50,7 +50,7 @@ plot_colvar <- function(x) {
 col <- colvar |> 
   filter(run %in% c("BAJ_01", "protein")) |> 
   mutate(
-    data = map(files, mdfret::readcolvar)
+    data = furrr::future_map(files, mdfret::readcolvar)
   )
 
 ```
@@ -170,7 +170,7 @@ tibble(
            "data/BAJ_01/HILLS")
 ) |> 
   mutate(
-    data = map(path, mdfret::readhills)
+    data = furrr::future_map(path, mdfret::readhills)
   ) -> dat
 
 dat |> 
@@ -189,6 +189,45 @@ dat |>
   theme_bw() + 
   theme(
     legend.position = 'bottom'
+  )
+```
+
+
+```{r}
+# files[1] |> 
+#   read_table(
+#     col_types = cols(), 
+#     col_names = FALSE, 
+#     comment = '#'
+#   )
+
+read_md <- function(file, comment = '#') {
+  top_line <- readr::read_lines(file, n_max = 1)
+  split <- top_line |> 
+    stringr::str_split(" ", simplify = TRUE)
+  col_names <- split[-c(1,2)]
+  
+  readr::read_table(
+    file = file, 
+    col_names = col_names, 
+    col_types = readr::cols(), 
+    comment = comment
+  )
+}
+
+list.files(".", pattern = "fes", recursive = TRUE) |> 
+  str_subset("BAJ_01") #|> 
+
+"~/Dropbox/BondLab/MolecularDynamics/clustering/BAJ_01/recalc_fes/fes_recalc.dat" |> 
+  read_lines(n_max = 10)
+  
+  as_tibble() |> 
+  mutate(
+    num = str_extract(value, '\\d{3,}') |> as.numeric(), 
+  ) |> 
+  filter(num == max(num)) |> 
+  mutate(
+    data = furrr::future_map(value, read_md)
   )
 ```
 
