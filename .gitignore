@@ -5,3 +5,5 @@
 
 /.quarto/
 clustering
+data
+*_files
